@@ -1,0 +1,27 @@
+package wakeonlan
+
+import (
+	"net"
+
+	"github.com/mdlayher/wol"
+)
+
+// Send a Wake-on-LAN packet to the given MAC address.
+// Assumes a broadcast address of 255.255.255.255:9
+func SendWolPacket(mac string) error {
+	wolC, err := wol.NewClient()
+	if err != nil {
+		return err
+	}
+
+	hwAddr, err := net.ParseMAC(mac)
+	if err != nil {
+		return err
+	}
+
+	if err := wolC.Wake("255.255.255.255:9", hwAddr); err != nil {
+		return err
+	}
+
+	return nil
+}
