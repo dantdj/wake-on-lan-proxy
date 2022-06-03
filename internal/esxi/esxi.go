@@ -11,7 +11,6 @@ type Connection struct {
 	MACAddress string
 	Username   string
 	Password   string
-	PoweredOn  bool
 }
 
 func New(url, username, password, mac string) Connection {
