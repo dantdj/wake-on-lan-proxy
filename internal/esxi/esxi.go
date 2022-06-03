@@ -52,9 +52,6 @@ func (ec *Connection) ServerReachable() bool {
 	if err != nil {
 		log.Error().
 			Err(err).
-			Str("username", ec.Username).
-			Str("password", ec.Password).
-			Str("host", ec.URL).
 			Msg("error when sending SSH message")
 		return false
 	}
