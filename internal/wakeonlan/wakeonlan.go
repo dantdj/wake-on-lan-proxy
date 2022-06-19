@@ -1,6 +1,7 @@
 package wakeonlan
 
 import (
+	"errors"
 	"net"
 
 	"github.com/mdlayher/wol"
@@ -16,7 +17,7 @@ func SendWolPacket(mac string) error {
 
 	hwAddr, err := net.ParseMAC(mac)
 	if err != nil {
-		return err
+		return errors.New("Failed to parse MAC: " + err.Error())
 	}
 
 	if err := wolC.Wake("255.255.255.255:9", hwAddr); err != nil {

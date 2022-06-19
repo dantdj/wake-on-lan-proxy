@@ -13,5 +13,5 @@ func main() {
 	log.Info().
 		Msg("Starting server on port 8080")
 
-	log.Fatal().Err(srv.Server.ListenAndServe())
+	log.Fatal().Err(srv.Server.ListenAndServe()).Msg("Error received")
 }

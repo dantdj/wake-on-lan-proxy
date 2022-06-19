@@ -1,7 +1,10 @@
 package server
 
 import (
+	"crypto/tls"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 	"os"
 	"strings"
 	"time"
@@ -30,6 +33,7 @@ func New(addr string) *Server {
 	err := godotenv.Load()
 	if err != nil {
 		log.Fatal().
+			Err(err).
 			Msg("Failed to load .env file")
 	}
 
@@ -45,7 +49,7 @@ func New(addr string) *Server {
 	go func() {
 		for {
 			timeDifference := time.Now().Sub(lastRequestTime)
-			if ec.ServerReachable() && timeDifference.Seconds() > 15 {
+			if ec.ServerReachable() && timeDifference.Minutes() > 15 {
 				log.Info().
 					Time("lastRequestTime", lastRequestTime).
 					Time("currentTime", time.Now()).
@@ -59,14 +63,16 @@ func New(addr string) *Server {
 		}
 	}()
 
-	r := mux.NewRouter()
-	middlewareRouter := configureMiddleware(r)
+	proxy, err := NewProxy("https://esxi.dantdj.com:8081/")
+	if err != nil {
+		panic(err)
+	}
 
-	r.HandleFunc("/", handleRoot).Methods("GET")
+	r := mux.NewRouter()
 	r.HandleFunc("/ping", handlePing).Methods("GET")
-	r.HandleFunc("/poweron", func(w http.ResponseWriter, r *http.Request) {
-		handlePoweron(w, r, ec)
-	}).Methods("GET")
+
+	r.NewRoute().PathPrefix("/").Methods("GET", "POST", "PUT", "DELETE").HandlerFunc(handleProxy(proxy, ec))
+	middlewareRouter := configureMiddleware(r)
 
 	server := http.Server{
 		Addr:    addr,
@@ -114,7 +120,7 @@ func configureMiddleware(r *mux.Router) http.Handler {
 	return chain.Then(r)
 }
 
-// Middleware that updates the last request time to track when to disable the server
+// Middleware that updates the last request time
 func recordRequest(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Skip ping requests, it only matters if a poweron or traffic request has come through
@@ -130,4 +136,30 @@ func recordRequest(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+func NewProxy(targetHost string) (*httputil.ReverseProxy, error) {
+	url, err := url.Parse(targetHost)
+	if err != nil {
+		return nil, err
+	}
+	log.Info().Msg("URL is " + url.String())
+
+	cert, err := tls.LoadX509KeyPair("/etc/letsencrypt/live/dantdj.com/fullchain.pem", "/etc/letsencrypt/live/dantdj.com/privkey.pem")
+
+	proxy := &httputil.ReverseProxy{}
+	director := func(req *http.Request) {
+		req.URL.Scheme = url.Scheme
+		req.URL.Host = url.Host
+	}
+	proxy.Director = director
+
+	proxy.Transport = &http.Transport{
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{cert},
+		},
+	}
+
+	return proxy, nil
 }
